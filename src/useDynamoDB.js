@@ -10,12 +10,12 @@ const itemsFetched = ref(false)
 
 /**
  * fetchItems(startTs: string, endTs: string) →
- *    1) Reads the currently authenticated Cognito user to use as partition key.
- *    2) Converts those credentials into AWS creds (via Auth.currentCredentials()).
- *    3) Queries the 'postData' table where:
- *         • partitionKey = username
+ *    1) Reads the currently authenticated Cognito user (username) → partition key.
+ *    2) Converts credentials into AWS creds via Auth.currentCredentials().
+ *    3) Queries 'postData' where:
+ *         • customerName = username
  *         • uStopTime BETWEEN startTs AND endTs
- *    4) Unmarshalls and places results into `items`.
+ *    4) Unmarshalls and populates `items`.
  */
 async function fetchItems(startTs, endTs) {
   fetchError.value = ''
@@ -25,9 +25,9 @@ async function fetchItems(startTs, endTs) {
   try {
     // 1) Who is logged in?
     const currentUser = await Auth.currentAuthenticatedUser()
-    const username = currentUser.username // this becomes our "customerName" in DynamoDB
+    const username = currentUser.username
 
-    // 2) Get AWS credentials from Cognito Identity Pool
+    // 2) Exchange for AWS creds
     const credentials = await Auth.currentCredentials()
     const client = new DynamoDBClient({
       region: 'us-east-2',
@@ -38,7 +38,7 @@ async function fetchItems(startTs, endTs) {
       },
     })
 
-    // 3) Build the QueryCommand
+    // 3) Build QueryCommand
     const queryParams = {
       TableName: 'postData',
       KeyConditionExpression:
@@ -48,13 +48,13 @@ async function fetchItems(startTs, endTs) {
         ':start': { S: startTs },
         ':end': { S: endTs },
       },
-      ScanIndexForward: false, // sort descending if you want newest first
+      ScanIndexForward: false, // newest first
     }
 
     const command = new QueryCommand(queryParams)
     const response = await client.send(command)
 
-    // 4) Unmarshall items if present
+    // 4) Unmarshall items
     if (response.Items && response.Items.length > 0) {
       items.value = response.Items.map((raw) => unmarshall(raw))
     } else {

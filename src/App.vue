@@ -1,13 +1,18 @@
 <template>
   <div class="card">
-    <!-- If not signed in → show Sign-in -->
-    <button v-if="!user" @click="signIn()">Sign-in</button>
+    <!-- DEBUG: show current user.username (or “null”) in the UI -->
+    <p style="font-size: 0.9rem; color: #ccc">
+      DEBUG: user = {{ user ? user.username : 'null' }}
+    </p>
 
-    <!-- If signed in → show Sign-out and Query-postData -->
+    <!-- If not signed in, show Sign-in button -->
+    <button v-if="!user" @click="onSignInClick">Sign-in</button>
+
+    <!-- If signed in, show Sign-out + Query-postData -->
     <div v-else>
       <div style="margin-bottom: 1rem">
-        <button @click="signOut()">Sign-out</button>
-        <button @click="toggleForm()" style="margin-left: 1rem">
+        <button @click="onSignOutClick">Sign-out</button>
+        <button @click="toggleForm" style="margin-left: 1rem">
           Query-postData
         </button>
       </div>
@@ -34,10 +39,10 @@
           style="margin-left: 0.5rem; width: 120px"
         />
 
-        <button @click="submitQuery()" style="margin-left: 1rem">Submit</button>
+        <button @click="submitQuery" style="margin-left: 1rem">Submit</button>
       </div>
 
-      <!-- Show loading / error states -->
+      <!-- Show Loading / Error / No-Data messages -->
       <div v-if="itemsFetched && fetchError" style="color: red">
         Error: {{ fetchError }}
       </div>
@@ -45,7 +50,7 @@
         No records found in that date range.
       </div>
 
-      <!-- List out returned items -->
+      <!-- List returned items in a simple table -->
       <div v-else-if="itemsFetched">
         <table style="width: 100%; border-collapse: collapse; margin-top: 1rem">
           <thead>
@@ -125,48 +130,66 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { useAuth } from './composables/useAuth'
-import { useDynamoDB } from './composables/useDynamoDB'
+import { ref } from 'vue'
+// Import from `src/useAuth.js` (since you moved it to src/)
+import { useAuth } from './useAuth.js'
+import { useDynamoDB } from './useDynamoDB.js'
 
-// ─── Auth / DynamoDB Composables ─────────────────────────────────────────────
+// ─── Destructure everything you need from useAuth() ─────────────────────────────
 const { user, signIn, signOut } = useAuth()
+// If `user`, `signIn`, or `signOut` were missing, you’d see errors in the console.
+//───────────────────────────────────────────────────────────────────────────────
+
+// Use the DynamoDB composable just like before
 const { items, fetchError, itemsFetched, fetchItems } = useDynamoDB()
-// ──────────────────────────────────────────────────────────────────────────────
 
+// Reactive state for toggling the form and holding dates
 const showForm = ref(false)
-const startDate = ref('07/01/2020') // mm/dd/yyyy
-const endDate = ref('11/23/2020') // mm/dd/yyyy
+const startDate = ref('07/01/2020')
+const endDate = ref('11/23/2020')
 
-/**
- * Toggle the visibility of the form.
- */
+// Called when the “Query-postData” button is pressed
 function toggleForm() {
   showForm.value = !showForm.value
 }
 
-/**
- * Converts an "MM/DD/YYYY" string to a Unix timestamp (in seconds),
- * then builds and issues the DynamoDB query.
- */
+// We wrap signIn()/signOut() to ensure they exist, and to log minor debug info
+function onSignInClick() {
+  if (typeof signIn === 'function') {
+    console.log('[App.vue] signIn() called')
+    signIn()
+  } else {
+    console.error('[App.vue] signIn is not a function')
+  }
+}
+
+function onSignOutClick() {
+  if (typeof signOut === 'function') {
+    console.log('[App.vue] signOut() called')
+    signOut()
+  } else {
+    console.error('[App.vue] signOut is not a function')
+  }
+}
+
+// When the form is submitted, convert “MM/DD/YYYY” → Unix timestamps → query DynamoDB
 async function submitQuery() {
-  // Convert "MM/DD/YYYY" to a JS Date
+  // 1) Parse “MM/DD/YYYY” strings
   const [m1, d1, y1] = startDate.value.split('/').map((s) => Number(s))
   const [m2, d2, y2] = endDate.value.split('/').map((s) => Number(s))
 
-  // new Date(year, monthIndex, day) → monthIndex is zero-based
+  // 2) Build JS Date → getTime() → seconds → toString()
   const startTsNum = Math.floor(new Date(y1, m1 - 1, d1).getTime() / 1000)
   const endTsNum = Math.floor(new Date(y2, m2 - 1, d2).getTime() / 1000)
-
   const startTs = startTsNum.toString()
   const endTs = endTsNum.toString()
 
-  // Clear any previous state:
+  // 3) Reset any previous fetch state
   items.value = []
   fetchError.value = ''
   itemsFetched.value = false
 
-  // Call fetchItems with computed timestamps
+  // 4) Call our DynamoDB composable
   await fetchItems(startTs, endTs)
 }
 </script>
