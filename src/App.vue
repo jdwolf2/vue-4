@@ -193,7 +193,9 @@ async function submitQuery() {
   await fetchItems(startTs, endTs)
 }
 </script>
-
+<style>
+@import url('./style.css');
+</style>
 <style scoped>
 .card {
   max-width: 800px;
