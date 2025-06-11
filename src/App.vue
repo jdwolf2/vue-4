@@ -1,9 +1,6 @@
 <template>
   <div class="card">
     <!-- DEBUG: show current user.username (or “null”) in the UI -->
-    <p style="font-size: 0.9rem; color: #ccc">
-      DEBUG: user = {{ user ? user.username : 'null' }}
-    </p>
 
     <!-- If not signed in, show Sign-in button -->
     <button v-if="!user" @click="onSignInClick">Sign-in</button>
